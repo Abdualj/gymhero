@@ -54,6 +54,14 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from uploads directory (for local storage mode)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Add Railway public domain to media URLs if needed
+app.use((req, res, next) => {
+  res.locals.baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : `http://localhost:${process.env.PORT || 3000}`;
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/workouts', workoutRoutes);
