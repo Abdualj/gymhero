@@ -1,0 +1,55 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import db from './db';
+import authRoutes from './routes/auth';
+import workoutRoutes from './routes/workouts';
+import statsRoutes from './routes/stats';
+import { globalErrorHandler } from './utils/errors';
+import { migrateDatabase } from './utils/migrate';
+
+const app = express();
+
+// Run database migrations
+migrateDatabase();
+
+// CORS Configuration
+app.use(cors({
+  origin: ['http://localhost:3001', 'http://localhost:3002', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from uploads directory (for local storage mode)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/workouts', workoutRoutes);
+app.use('/api/users', statsRoutes);
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'Server is running' });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Global error handling middleware
+app.use(globalErrorHandler);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`GymHero API server running on port ${PORT}`);
+});
+
+export default app;

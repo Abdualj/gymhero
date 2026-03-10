@@ -1,0 +1,210 @@
+📁 GYMHERO PROJECT STRUCTURE
+═══════════════════════════════════════════════════════════════
+
+BACKEND (gymhero/)
+─────────────────────────────────────────────────────────────
+gymhero/
+├── 📄 package.json               # Dependencies & npm scripts
+├── 📄 tsconfig.json              # TypeScript configuration
+├── 📄 README.md                  # Project documentation
+├── 📄 .env                       # Environment variables (secret)
+├── 📄 .env.example               # Environment template
+├── 📄 .gitignore                 # Git ignore rules
+├── 🗄️  gymhero.db                # SQLite database file
+│
+├── 📁 src/                       # TypeScript source code
+│   ├── 📄 server.ts              # Main Express server
+│   ├── 📄 db.ts                  # Database connection setup
+│   │
+│   ├── 📁 config/
+│   │   └── 📄 cloudinary.ts      # Cloudinary configuration
+│   │
+│   ├── 📁 middleware/
+│   │   └── 📄 auth.ts            # JWT token verification
+│   │
+│   ├── 📁 routes/
+│   │   ├── 📄 auth.ts            # /api/auth/register, /login
+│   │   ├── 📄 workouts.ts        # /api/workouts (CRUD)
+│   │   └── 📄 stats.ts           # /api/users/:id/stats, /streaks
+│   │
+│   └── 📁 utils/
+│       ├── 📄 errors.ts          # Error handling utilities
+│       ├── 📄 helpers.ts         # Helper functions
+│       └── 📄 migrate.ts         # Database migrations
+│
+├── 📁 shared/                    # Shared TypeScript interfaces
+│   └── 📄 interfaces.ts          # User, Workout, Comment types
+│
+├── 📁 uploads/                   # User uploaded files
+│   ├── 🖼️  1_timestamp.jpg       # Workout images
+│   ├── 🎥 1_timestamp.mp4       # Workout videos
+│   └── 🖼️  profile_2_timestamp.jpg  # Profile pictures
+│
+├── 📁 dist/                      # Compiled JavaScript output
+│   └── (auto-generated .js files from TypeScript)
+│
+├── 📁 config/                    # Legacy JS config (deprecated)
+├── 📁 middleware/                # Legacy JS middleware (deprecated)
+├── 📁 routes/                    # Legacy JS routes (deprecated)
+└── 📁 utils/                     # Legacy JS utils (deprecated)
+
+
+FRONTEND (gymhero-frontend/)
+─────────────────────────────────────────────────────────────
+gymhero-frontend/
+├── 📄 package.json
+├── 📄 tsconfig.json
+├── 📄 .env                       # REACT_APP_API_URL
+│
+├── 📁 public/
+│   ├── 📄 index.html
+│   └── 📄 favicon.ico
+│
+└── 📁 src/
+    ├── 📄 App.tsx                # Main app component with routes
+    ├── 📄 index.tsx              # React DOM render entry
+    ├── 📄 index.css              # Tailwind CSS imports
+    │
+    ├── 📁 components/            # Reusable React components
+    │   ├── 📄 Navbar.tsx
+    │   ├── 📄 WorkoutCard.tsx
+    │   ├── 📄 WorkoutForm.tsx
+    │   ├── 📄 StatsCard.tsx
+    │   └── 📄 CommentSection.tsx
+    │
+    ├── 📁 pages/                 # Page-level components
+    │   ├── 📄 Login.tsx
+    │   ├── 📄 Register.tsx
+    │   ├── 📄 Profile.tsx
+    │   ├── 📄 Feed.tsx
+    │   └── 📄 Settings.tsx
+    │
+    ├── 📁 context/               # React Context API
+    │   └── 📄 AuthContext.tsx    # User authentication state
+    │
+    ├── 📁 api/                   # API communication
+    │   ├── 📄 axios.ts           # Axios instance with config
+    │   └── 📄 endpoints.ts       # API endpoint definitions
+    │
+    └── 📁 types/                 # TypeScript type definitions
+        └── 📄 index.ts           # Frontend types
+
+
+═══════════════════════════════════════════════════════════════
+📊 DATABASE STRUCTURE (SQLite)
+═══════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────┐
+│ TABLE: users                                                │
+├─────────────────────────────────────────────────────────────┤
+│ id               INTEGER PRIMARY KEY AUTOINCREMENT          │
+│ username         TEXT UNIQUE NOT NULL                       │
+│ email            TEXT UNIQUE NOT NULL                       │
+│ password_hash    TEXT NOT NULL                              │
+│ profile_picture  TEXT                                       │
+│ bio              TEXT                                       │
+│ created_at       DATETIME DEFAULT CURRENT_TIMESTAMP         │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ 1:N relationship
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ TABLE: workouts                                             │
+├─────────────────────────────────────────────────────────────┤
+│ id               INTEGER PRIMARY KEY AUTOINCREMENT          │
+│ user_id          INTEGER NOT NULL (FK → users.id)           │
+│ media_url        TEXT NOT NULL                              │
+│ media_type       TEXT NOT NULL (image/video)                │
+│ caption          TEXT                                       │
+│ workout_type     TEXT (push/pull/legs/cardio/full-body)     │
+│ created_at       DATETIME DEFAULT CURRENT_TIMESTAMP         │
+│ FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE│
+└─────────────────────────────────────────────────────────────┘
+            │                           │
+            │ 1:N                       │ 1:N
+            ▼                           ▼
+┌───────────────────────┐   ┌───────────────────────────────┐
+│ TABLE: likes          │   │ TABLE: comments               │
+├───────────────────────┤   ├───────────────────────────────┤
+│ id        PK          │   │ id          PK                │
+│ user_id   FK          │   │ user_id     FK                │
+│ workout_id FK         │   │ workout_id  FK                │
+│ created_at DATETIME   │   │ text        TEXT NOT NULL     │
+│ UNIQUE(user_id,       │   │ created_at  DATETIME          │
+│        workout_id)    │   │                               │
+└───────────────────────┘   └───────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+🚀 API ENDPOINTS
+═══════════════════════════════════════════════════════════════
+
+AUTHENTICATION
+  POST   /api/auth/register      - Create new user
+  POST   /api/auth/login         - Login user (get JWT token)
+
+WORKOUTS
+  GET    /api/workouts           - Get all workouts (authenticated)
+  POST   /api/workouts           - Upload new workout (auth + file)
+  GET    /api/workouts/:id       - Get specific workout
+  DELETE /api/workouts/:id       - Delete workout (owner only)
+
+STATISTICS
+  GET    /api/users/:id/stats    - Get workout count
+  GET    /api/users/:id/streaks  - Get current/longest streaks
+
+LIKES (implied from schema)
+  POST   /api/workouts/:id/like  - Like a workout
+  DELETE /api/workouts/:id/like  - Unlike a workout
+
+COMMENTS (implied from schema)
+  POST   /api/workouts/:id/comments    - Add comment
+  GET    /api/workouts/:id/comments    - Get comments
+  DELETE /api/comments/:id              - Delete comment
+
+
+═══════════════════════════════════════════════════════════════
+🔧 KEY TECHNOLOGIES
+═══════════════════════════════════════════════════════════════
+
+Backend:
+  • Node.js + Express (TypeScript)
+  • SQLite database with foreign keys
+  • JWT (jsonwebtoken) for authentication
+  • bcryptjs for password hashing
+  • Multer for file uploads
+  • Cloudinary (optional) for cloud storage
+  • CORS enabled
+
+Frontend:
+  • React 18 (TypeScript)
+  • React Router DOM v6
+  • Axios for API calls
+  • Tailwind CSS for styling
+  • Context API for state management
+  • date-fns for date formatting
+  • lucide-react for icons
+
+
+═══════════════════════════════════════════════════════════════
+📦 DEPLOYMENT STRUCTURE (when deployed)
+═══════════════════════════════════════════════════════════════
+
+Backend:  Railway/Render/Fly.io
+  ↓
+  PostgreSQL or SQLite
+  ↓
+  REST API (http://api.gymhero.com)
+
+Frontend: Vercel/Netlify
+  ↓
+  Static React App (https://gymhero.vercel.app)
+  ↓
+  Calls Backend API
+
+
+═══════════════════════════════════════════════════════════════
+Generated: March 8, 2026
+Author: Abdullah Aljubury
+Course: Hybridisovellukset TX00EY68-3003
+═══════════════════════════════════════════════════════════════
