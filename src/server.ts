@@ -14,9 +14,34 @@ const app = express();
 // Run database migrations
 migrateDatabase();
 
-// CORS Configuration
+// CORS Configuration - Allow Netlify frontend and localhost
+const allowedOrigins = [
+  'http://localhost:3001', 
+  'http://localhost:3002', 
+  'http://localhost:3000',
+  'https://gymhero-frontend.netlify.app', // Add your actual Netlify URL here
+  /\.netlify\.app$/ // Allow all Netlify subdomains
+];
+
 app.use(cors({
-  origin: ['http://localhost:3001', 'http://localhost:3002', 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is allowed
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
