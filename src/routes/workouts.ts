@@ -14,11 +14,19 @@ const STORAGE_MODE = process.env.STORAGE_MODE || 'local';
 
 // Configure Cloudinary (only if using cloudinary mode)
 if (STORAGE_MODE === 'cloudinary') {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-  });
+  console.log('🔧 Cloudinary mode enabled');
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    console.error('❌ Cloudinary credentials missing! Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET');
+  } else {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET
+    });
+    console.log('✅ Cloudinary configured successfully');
+  }
+} else {
+  console.log('📁 Using local storage mode');
 }
 
 // Create uploads directory for local storage
@@ -118,15 +126,21 @@ router.post(
       let mediaUrl: string;
       let mediaType: string;
 
+      console.log(`📤 Uploading file for user ${userId} using ${STORAGE_MODE} mode`);
+
       // Upload based on storage mode
       if (STORAGE_MODE === 'local') {
         const result = await uploadToLocal(req.file, userId!);
         mediaUrl = result.url;
         mediaType = result.type;
-      } else {
+        console.log('✅ Local upload successful:', mediaUrl);
+      } else if (STORAGE_MODE === 'cloudinary') {
         const result = await uploadToCloudinary(req.file, userId!);
         mediaUrl = result.url;
         mediaType = result.type;
+        console.log('✅ Cloudinary upload successful:', mediaUrl);
+      } else {
+        throw new Error(`Invalid STORAGE_MODE: ${STORAGE_MODE}`);
       }
 
       // Save to database
@@ -151,11 +165,13 @@ router.post(
         }
       );
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('❌ Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({ 
-        error: STORAGE_MODE === 'local' 
-          ? 'Failed to save file locally' 
-          : 'Failed to upload media to Cloudinary' 
+        error: STORAGE_MODE === 'cloudinary' 
+          ? `Failed to upload to Cloudinary: ${errorMessage}`
+          : `Failed to save file locally: ${errorMessage}`,
+        details: errorMessage
       });
     }
   }
