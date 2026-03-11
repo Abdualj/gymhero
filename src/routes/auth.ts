@@ -3,22 +3,39 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
+import { Readable } from 'stream';
+import { v2 as cloudinary } from 'cloudinary';
 import db from '../db';
 import { verifyToken } from '../middleware/auth';
 
 const router = Router();
 
-// Configure multer for profile picture uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads'));
-  },
-  filename: (req, file, cb) => {
-    const userId = (req as any).user?.userId || 'unknown';
-    const uniqueName = `profile_${userId}_${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
+const STORAGE_MODE = process.env.STORAGE_MODE || 'local';
+
+// Configure Cloudinary (only if using cloudinary mode)
+if (STORAGE_MODE === 'cloudinary') {
+  console.log('🔧 Cloudinary mode enabled for profile pictures');
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    console.error('❌ Cloudinary credentials missing!');
+  } else {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET
+    });
+    console.log('✅ Cloudinary configured for profiles');
   }
-});
+}
+
+// Create uploads directory for local storage
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+if (STORAGE_MODE === 'local' && !fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Configure multer for profile picture uploads (use memory storage for both modes)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -35,6 +52,49 @@ const upload = multer({
     }
   }
 });
+
+// Helper function to upload profile picture to Cloudinary
+const uploadProfileToCloudinary = (file: Express.Multer.File, userId: number): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const stream = Readable.from([file.buffer]);
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        folder: 'gymhero/profiles',
+        public_id: `profile_${userId}_${Date.now()}`
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else if (!result) {
+          reject(new Error('Upload failed'));
+        } else {
+          resolve(result.secure_url);
+        }
+      }
+    );
+
+    stream.pipe(uploadStream);
+  });
+};
+
+// Helper function to upload profile picture to local storage
+const uploadProfileToLocal = (file: Express.Multer.File, userId: number): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const extension = file.originalname.split('.').pop() || 'jpg';
+    const filename = `profile_${userId}_${Date.now()}.${extension}`;
+    const filepath = path.join(UPLOADS_DIR, filename);
+
+    fs.writeFile(filepath, file.buffer, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(`/uploads/${filename}`);
+      }
+    });
+  });
+};
 
 interface RegisterRequest {
   username: string;
@@ -220,7 +280,7 @@ router.put('/profile', verifyToken, (req: Request, res: Response): void => {
 });
 
 // Update profile picture
-router.post('/profile/picture', verifyToken, upload.single('profile_picture'), (req: Request, res: Response): void => {
+router.post('/profile/picture', verifyToken, upload.single('profile_picture'), async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user.userId;
 
   if (!req.file) {
@@ -228,23 +288,39 @@ router.post('/profile/picture', verifyToken, upload.single('profile_picture'), (
     return;
   }
 
-  const profilePictureUrl = `/uploads/${req.file.filename}`;
+  try {
+    let profilePictureUrl: string;
 
-  db.run(
-    'UPDATE users SET profile_picture = ? WHERE id = ?',
-    [profilePictureUrl, userId],
-    function(err) {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-
-      res.json({
-        message: 'Profile picture updated successfully',
-        profile_picture: profilePictureUrl
-      });
+    // Upload to Cloudinary or local storage based on STORAGE_MODE
+    if (STORAGE_MODE === 'cloudinary') {
+      console.log(`📸 Uploading profile picture to Cloudinary for user ${userId}`);
+      profilePictureUrl = await uploadProfileToCloudinary(req.file, userId);
+      console.log(`✅ Profile picture uploaded to Cloudinary: ${profilePictureUrl}`);
+    } else {
+      console.log(`📸 Uploading profile picture to local storage for user ${userId}`);
+      profilePictureUrl = await uploadProfileToLocal(req.file, userId);
+      console.log(`✅ Profile picture saved locally: ${profilePictureUrl}`);
     }
-  );
+
+    db.run(
+      'UPDATE users SET profile_picture = ? WHERE id = ?',
+      [profilePictureUrl, userId],
+      function(err) {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+
+        res.json({
+          message: 'Profile picture updated successfully',
+          profile_picture: profilePictureUrl
+        });
+      }
+    );
+  } catch (error: any) {
+    console.error('❌ Profile picture upload failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to upload profile picture' });
+  }
 });
 
 export default router;
