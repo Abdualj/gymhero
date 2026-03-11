@@ -1,39 +1,10 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
-import fs from 'fs';
 
-// Use Railway volume in production, local path in development
-// Railway volume ensures data persists across deployments
-const isProduction = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
-const volumePath = '/app/data/gymhero.db';
-const localPath = path.join(__dirname, '..', 'gymhero.db');
-const dbPath = isProduction ? volumePath : localPath;
+// Simple database path - works for both development and production
+const dbPath = path.join(__dirname, '..', 'gymhero.db');
 
-console.log(`📋 Environment: ${isProduction ? 'PRODUCTION (Railway)' : 'DEVELOPMENT (Local)'}`);
 console.log(`📁 Database location: ${dbPath}`);
-
-// In production, ensure the data directory exists and copy initial database if needed
-if (isProduction) {
-  const dataDir = '/app/data';
-  const sourceDb = path.join(__dirname, '..', 'gymhero.db');
-  
-  // Create data directory if it doesn't exist
-  if (!fs.existsSync(dataDir)) {
-    console.log('📁 Creating data directory for Railway volume...');
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  
-  // Copy initial database if volume database doesn't exist
-  if (!fs.existsSync(volumePath) && fs.existsSync(sourceDb)) {
-    console.log('📋 Initializing database in volume from git version...');
-    fs.copyFileSync(sourceDb, volumePath);
-    console.log('✅ Database copied to volume successfully');
-  } else if (fs.existsSync(volumePath)) {
-    console.log('✅ Using existing database from volume (data persists!)');
-  } else {
-    console.log('⚠️  No initial database found, will create new one');
-  }
-}
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
