@@ -13,6 +13,8 @@ const router = Router();
 
 const STORAGE_MODE = process.env.STORAGE_MODE || 'local';
 
+console.log(`📋 Profile pictures STORAGE_MODE: ${STORAGE_MODE}`);
+
 // Configure Cloudinary (only if using cloudinary mode)
 if (STORAGE_MODE === 'cloudinary') {
   console.log('🔧 Cloudinary mode enabled for profile pictures');
@@ -26,12 +28,20 @@ if (STORAGE_MODE === 'cloudinary') {
     });
     console.log('✅ Cloudinary configured for profiles');
   }
+} else {
+  console.log('⚠️  WARNING: Using local storage mode for profiles. Set STORAGE_MODE=cloudinary for production!');
 }
 
 // Create uploads directory for local storage
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
-if (STORAGE_MODE === 'local' && !fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (STORAGE_MODE === 'local') {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    console.log(`📁 Creating uploads directory: ${UPLOADS_DIR}`);
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    console.log('✅ Uploads directory created');
+  } else {
+    console.log(`✅ Uploads directory exists: ${UPLOADS_DIR}`);
+  }
 }
 
 // Configure multer for profile picture uploads (use memory storage for both modes)
@@ -283,21 +293,36 @@ router.put('/profile', verifyToken, (req: Request, res: Response): void => {
 router.post('/profile/picture', verifyToken, upload.single('profile_picture'), async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user.userId;
 
+  console.log(`🖼️  Profile picture upload request from user ${userId}`);
+  console.log(`📋 Current STORAGE_MODE: ${STORAGE_MODE}`);
+
   if (!req.file) {
+    console.error('❌ No file uploaded in request');
     res.status(400).json({ error: 'No file uploaded' });
     return;
   }
+
+  console.log(`📦 File received: ${req.file.originalname}, size: ${req.file.size} bytes, type: ${req.file.mimetype}`);
 
   try {
     let profilePictureUrl: string;
 
     // Upload to Cloudinary or local storage based on STORAGE_MODE
     if (STORAGE_MODE === 'cloudinary') {
-      console.log(`📸 Uploading profile picture to Cloudinary for user ${userId}`);
+      console.log(`☁️  Uploading profile picture to Cloudinary for user ${userId}`);
       profilePictureUrl = await uploadProfileToCloudinary(req.file, userId);
       console.log(`✅ Profile picture uploaded to Cloudinary: ${profilePictureUrl}`);
     } else {
-      console.log(`📸 Uploading profile picture to local storage for user ${userId}`);
+      console.log(`💾 Uploading profile picture to local storage for user ${userId}`);
+      console.log(`📁 Uploads directory: ${UPLOADS_DIR}`);
+      
+      // Ensure directory exists (failsafe)
+      if (!fs.existsSync(UPLOADS_DIR)) {
+        console.log(`⚠️  Uploads directory doesn't exist, creating it now...`);
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        console.log(`✅ Directory created: ${UPLOADS_DIR}`);
+      }
+      
       profilePictureUrl = await uploadProfileToLocal(req.file, userId);
       console.log(`✅ Profile picture saved locally: ${profilePictureUrl}`);
     }
@@ -307,10 +332,12 @@ router.post('/profile/picture', verifyToken, upload.single('profile_picture'), a
       [profilePictureUrl, userId],
       function(err) {
         if (err) {
+          console.error('❌ Database update failed:', err);
           res.status(500).json({ error: err.message });
           return;
         }
 
+        console.log(`✅ Database updated with new profile picture for user ${userId}`);
         res.json({
           message: 'Profile picture updated successfully',
           profile_picture: profilePictureUrl
@@ -319,7 +346,15 @@ router.post('/profile/picture', verifyToken, upload.single('profile_picture'), a
     );
   } catch (error: any) {
     console.error('❌ Profile picture upload failed:', error);
-    res.status(500).json({ error: error.message || 'Failed to upload profile picture' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({ 
+      error: error.message || 'Failed to upload profile picture',
+      details: STORAGE_MODE === 'local' ? 'Local storage mode requires persistent filesystem. Use STORAGE_MODE=cloudinary for production.' : undefined
+    });
   }
 });
 
